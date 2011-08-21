@@ -29,7 +29,7 @@ import random
 import urlparse
 import hmac
 import binascii
-import httplib2
+#import httplib2
 
 try:
     from urlparse import parse_qs
@@ -612,7 +612,7 @@ class Request(dict):
         return parameters
 
 
-class Client(httplib2.Http):
+class Client():
     """OAuthClient is a worker to attempt to execute a request."""
 
     def __init__(self, consumer, token=None, cache=None, timeout=None,
@@ -627,8 +627,12 @@ class Client(httplib2.Http):
         self.consumer = consumer
         self.token = token
         self.method = SignatureMethod_HMAC_SHA1()
-
-        httplib2.Http.__init__(self, cache=cache, timeout=timeout, proxy_info=proxy_info)
+        try:
+            from google.appengine.api.urlfetch import fetch
+        except ImportError:
+            import httplib2
+            self.http = httplib2.Http()
+            httplib2.Http.__init__(self.http, cache=cache, timeout=timeout, proxy_info=proxy_info)
 
     def set_signature_method(self, method):
         if not isinstance(method, SignatureMethod):
@@ -637,8 +641,14 @@ class Client(httplib2.Http):
         self.method = method
 
     def request(self, uri, method="GET", body='', headers=None, 
-        redirections=httplib2.DEFAULT_MAX_REDIRECTS, connection_type=None):
+        redirections=None, connection_type=None):
         DEFAULT_POST_CONTENT_TYPE = 'application/x-www-form-urlencoded'
+
+        try:
+            from google.appengine.api.urlfetch import fetch
+        except ImportError:
+            import httplib2
+            redirections=httplib2.DEFAULT_MAX_REDIRECTS
 
         if not isinstance(headers, dict):
             headers = {}
@@ -677,9 +687,20 @@ class Client(httplib2.Http):
         else:
             headers.update(req.to_header(realm=realm))
 
-        return httplib2.Http.request(self, uri, method=method, body=body,
-            headers=headers, redirections=redirections,
-            connection_type=connection_type)
+        try:
+            from google.appengine.api import apiproxy_stub_map
+            from google.appengine.api import urlfetch_stub
+            apiproxy_stub_map.apiproxy = apiproxy_stub_map.APIProxyStubMap()
+            apiproxy_stub_map.apiproxy.RegisterStub('urlfetch', urlfetch_stub.URLFetchServiceStub()) 
+            raw = fetch(url=uri,
+                payload=body, method=method)
+            raw.headers['status']= str(raw.status_code)
+            result = (raw.headers, raw.content)
+            return result
+        except ImportError:
+            return httplib2.Http.request(self.http, uri, method=method, body=body,
+                headers=headers, redirections=redirections,
+                connection_type=connection_type)
 
 
 class Server(object):

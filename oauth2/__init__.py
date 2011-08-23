@@ -688,10 +688,13 @@ class Client():
             headers.update(req.to_header(realm=realm))
 
         try:
+            """
+            #this is optional, but if you put it on GAE instance, it wont work
             from google.appengine.api import apiproxy_stub_map
             from google.appengine.api import urlfetch_stub
             apiproxy_stub_map.apiproxy = apiproxy_stub_map.APIProxyStubMap()
             apiproxy_stub_map.apiproxy.RegisterStub('urlfetch', urlfetch_stub.URLFetchServiceStub()) 
+            """
             raw = fetch(url=uri,
                 payload=body, method=method)
             raw.headers['status']= str(raw.status_code)
